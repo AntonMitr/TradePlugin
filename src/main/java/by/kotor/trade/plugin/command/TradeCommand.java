@@ -16,7 +16,7 @@ public class TradeCommand implements CommandExecutor {
             sender.sendMessage("Only players can execute this command.");
             return true;
         }
-        if (args.length == 0) return false;
+        if (args.length != 1) return false;
 
         Player player = (Player) sender;
 

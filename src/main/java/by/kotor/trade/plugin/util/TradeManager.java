@@ -21,6 +21,8 @@ public class TradeManager {
     private final File tradesFile = new File(TradePlugin.instance.getDataFolder(), "trades.json");
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final Logger log = TradePlugin.instance.getLogger();
+    private boolean isOperationTradeRunning = false;
+
 
     public TradeManager(int tradeTimeoutSecond) {
         this.tradeTimeoutSeconds = tradeTimeoutSecond;
@@ -32,6 +34,9 @@ public class TradeManager {
         new BukkitRunnable() {
             @Override
             public void run() {
+                if (isOperationTradeRunning) return;
+
+                isOperationTradeRunning = true;
                 if (!tradeOperations.isEmpty()) {
                     TradeOperation tradeOperation = tradeOperations.peek();
                     if (tradeOperation != null) {
@@ -45,6 +50,10 @@ public class TradeManager {
                             e.printStackTrace();
                         }
                     }
+                }
+                if (tradeOperations.isEmpty()) {
+                    isOperationTradeRunning = false;
+                    cancel();
                 }
             }
         }.runTaskTimer(TradePlugin.instance, 0L, 1L);
@@ -65,6 +74,7 @@ public class TradeManager {
         try (FileReader reader = new FileReader(tradesFile)) {
             TradeOperation[] loaded = gson.fromJson(reader, TradeOperation[].class);
             if (loaded != null) {
+                tradeOperations.clear();
                 tradeOperations.addAll(Arrays.asList(loaded));
             }
         } catch (IOException e) {
@@ -153,6 +163,7 @@ public class TradeManager {
             String SenderItemBase64 = ItemStackSerializer.serialize(senderItem);
             String ReceiverItemBase64 = ItemStackSerializer.serialize(receiverItem);
             tradeOperations.add(new TradeOperation(uuidSender, uuidReceiver, SenderItemBase64, ReceiverItemBase64));
+            startOperationTrade();
         } catch (IOException e) {
             TradePlugin.instance.getLogger().warning("Problems with serialization of items");
             e.printStackTrace();
