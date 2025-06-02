@@ -38,8 +38,8 @@ public class TradeOperation {
         sender.getInventory().setItemInMainHand(receiverItem);
         receiver.getInventory().setItemInMainHand(senderItem);
 
-        sender.sendMessage("Trade operation completed!");
-        receiver.sendMessage("Trade operation completed!");
+        ChatUtil.sendMessage(sender, "&fTrade with" + receiver.getName() + " completed!");
+        ChatUtil.sendMessage(sender, "&fTrade with " + sender.getName() + " completed!");
     }
 
     public UUID getSenderId() {

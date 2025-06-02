@@ -3,6 +3,7 @@ package by.kotor.trade.plugin.util;
 import by.kotor.trade.plugin.TradePlugin;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -18,9 +19,9 @@ public class TradeManager {
     private final int tradeTimeoutSeconds;
     private final Map<UUID, TradeRequest> pendingTrades;
     private final Queue<TradeOperation> tradeOperations;
-    private final File tradesFile = new File(TradePlugin.instance.getDataFolder(), "trades.json");
+    private final File tradesFile = new File(TradePlugin.getInstance().getDataFolder(), "trades.json");
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
-    private final Logger log = TradePlugin.instance.getLogger();
+    private final Logger log = TradePlugin.getInstance().getLogger();
     private boolean isOperationTradeRunning = false;
 
 
@@ -56,30 +57,44 @@ public class TradeManager {
                     cancel();
                 }
             }
-        }.runTaskTimer(TradePlugin.instance, 0L, 1L);
+        }.runTaskTimer(TradePlugin.getInstance(), 0L, 1L);
     }
 
     public void saveTradesToFile() {
-        try (FileWriter writer = new FileWriter(tradesFile)) {
-            gson.toJson(tradeOperations, writer);
-        } catch (IOException e) {
-            log.warning("Failed to save trades to file");
-            e.printStackTrace();
-        }
+        Bukkit.getScheduler().runTaskAsynchronously(TradePlugin.getInstance(),
+                () -> {
+                    try (FileWriter writer = new FileWriter(tradesFile)) {
+                        gson.toJson(tradeOperations, writer);
+                    } catch (IOException e) {
+                        log.warning("Failed to save trades to file");
+                        e.printStackTrace();
+                    }
+                });
     }
 
     public void loadTradesFromFile() {
         if (!tradesFile.exists()) return;
 
-        try (FileReader reader = new FileReader(tradesFile)) {
-            TradeOperation[] loaded = gson.fromJson(reader, TradeOperation[].class);
-            if (loaded != null) {
-                tradeOperations.clear();
-                tradeOperations.addAll(Arrays.asList(loaded));
-            }
-        } catch (IOException e) {
-            log.warning("Failed to load trades from file");
-            e.printStackTrace();
+        Bukkit.getScheduler().runTaskAsynchronously(TradePlugin.getInstance(),
+                () -> {
+                    try (FileReader reader = new FileReader(tradesFile)) {
+                        TradeOperation[] loaded = gson.fromJson(reader, TradeOperation[].class);
+                        if (loaded != null) {
+                            tradeOperations.clear();
+                            tradeOperations.addAll(Arrays.asList(loaded));
+                        }
+                    } catch (IOException e) {
+                        log.warning("Failed to load trades from file");
+                        e.printStackTrace();
+                    }
+                });
+    }
+
+    public void cleanupOnQuit(UUID playerId) {
+        TradeRequest tradeRequest = pendingTrades.remove(playerId);
+        if (tradeRequest != null) {
+            pendingTrades.remove(tradeRequest.getSender().getUniqueId());
+            pendingTrades.remove(tradeRequest.getReceiver().getUniqueId());
         }
     }
 
@@ -90,33 +105,33 @@ public class TradeManager {
 
     public void proposeTrade(Player sender, Player receiver) {
         if (sender == null) {
-            receiver.sendMessage("Sender not found");
+            ChatUtil.sendMessage(receiver, "&fSender not found");
             return;
         }
 
         if (receiver == null) {
-            sender.sendMessage("Receiver not found");
+            ChatUtil.sendMessage(sender, "&fReceiver not found");
             return;
         }
 
         if (sender.equals(receiver)) {
-            sender.sendMessage("You cannot trade with yourself!");
+            ChatUtil.sendMessage(sender, "&fYou cannot trade with yourself!");
             return;
         }
 
         if (pendingTrades.containsKey(sender.getUniqueId())) {
-            sender.sendMessage("You have an open trade");
+            ChatUtil.sendMessage(sender, "&fYou have an open trade");
             return;
         }
 
         if (pendingTrades.containsKey(receiver.getUniqueId())) {
-            sender.sendMessage("Receiver has an open trade");
+            ChatUtil.sendMessage(sender, "&fReceiver has an open trade");
             return;
         }
 
         ItemStack senderItem = sender.getInventory().getItemInMainHand();
         if (senderItem == null || senderItem.getType().isAir()) {
-            sender.sendMessage("You must hold an item to trade");
+            ChatUtil.sendMessage(sender, "&fYou must hold an item to trade");
             return;
         }
 
@@ -124,9 +139,9 @@ public class TradeManager {
         pendingTrades.put(sender.getUniqueId(), tradeRequest);
         pendingTrades.put(receiver.getUniqueId(), tradeRequest);
 
-        sender.sendMessage("Trade propose to " + receiver.getName() + " with " + senderItem.getType().name());
-        receiver.sendMessage(sender.getName() + " wants to trade their " + senderItem.getType().name() +
-                ". Use /trade accept or /trade deny within " + tradeTimeoutSeconds + " seconds.");
+        ChatUtil.sendMessage(sender, "&fTrade propose to " + receiver.getName() + " with " + senderItem.getType().name());
+        ChatUtil.sendMessage(sender, "&f" + sender.getName() + " wants to trade their " + senderItem.getType().name() +
+                        ". Use /trade accept or /trade deny within " + tradeTimeoutSeconds + " seconds.");
 
         new BukkitRunnable() {
             @Override
@@ -134,17 +149,17 @@ public class TradeManager {
                 if (pendingTrades.containsKey(sender.getUniqueId())) {
                     pendingTrades.remove(sender.getUniqueId());
                     pendingTrades.remove(receiver.getUniqueId());
-                    sender.sendMessage("Trade with " + receiver.getName() + " has timed out");
-                    receiver.sendMessage("Trade with " + sender.getName() + " has timed out");
+                    ChatUtil.sendMessage(sender, "&fTrade with " + receiver.getName() + " has timed out");
+                    ChatUtil.sendMessage(sender, "&fTrade with " + sender.getName() + " has timed out");
                 }
             }
-        }.runTaskLater(TradePlugin.instance, tradeTimeoutSeconds * 20L);
+        }.runTaskLater(TradePlugin.getInstance(), tradeTimeoutSeconds * 20L);
     }
 
     public void accept(Player receiver) {
         TradeRequest tradeRequest = pendingTrades.get(receiver.getUniqueId());
         if (tradeRequest == null) {
-            receiver.sendMessage("No pending trade request");
+            ChatUtil.sendMessage(receiver, "&fNo pending trade request");
             return;
         }
 
@@ -153,7 +168,7 @@ public class TradeManager {
         ItemStack receiverItem = receiver.getInventory().getItemInMainHand();
 
         if (receiverItem == null || receiverItem.getType().isAir()) {
-            sender.sendMessage("You must hold an item to trade");
+            ChatUtil.sendMessage(sender, "&fYou must hold an item to trade");
             return;
         }
 
@@ -165,19 +180,16 @@ public class TradeManager {
             tradeOperations.add(new TradeOperation(uuidSender, uuidReceiver, SenderItemBase64, ReceiverItemBase64));
             startOperationTrade();
         } catch (IOException e) {
-            TradePlugin.instance.getLogger().warning("Problems with serialization of items");
+            log.warning("Problems with serialization of items");
             e.printStackTrace();
         }
         saveTradesToFile();
-
-        sender.sendMessage("Trade with " + receiver.getName() + " completed!");
-        receiver.sendMessage("Trade with " + sender.getName() + " completed!");
         }
 
     public void deny(Player receiver) {
         TradeRequest tradeRequest = pendingTrades.get(receiver.getUniqueId());
         if (tradeRequest == null) {
-            receiver.sendMessage("No pending trade request");
+            ChatUtil.sendMessage(receiver,"&fNo pending trade request");
             return;
         }
 
@@ -185,8 +197,8 @@ public class TradeManager {
         pendingTrades.remove(sender.getUniqueId());
         pendingTrades.remove(receiver.getUniqueId());
 
-        sender.sendMessage(receiver.getName() + " denied your trade request.");
-        receiver.sendMessage("Trade request from " + sender.getName() + " denied.");
+        ChatUtil.sendMessage(sender,"&fdenied your trade request.");
+        ChatUtil.sendMessage(receiver,"&fTrade request from " + sender.getName() + " denied");
     }
 
 }

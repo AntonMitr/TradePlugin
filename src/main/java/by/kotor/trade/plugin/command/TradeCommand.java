@@ -8,7 +8,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 public class TradeCommand implements CommandExecutor {
-    private TradeManager tradeManager = TradePlugin.instance.getTradeManager();
+    private final TradeManager tradeManager = TradePlugin.getInstance().getTradeManager();
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {

@@ -1,18 +1,17 @@
 package by.kotor.trade.plugin;
 
 import by.kotor.trade.plugin.command.TradeCommand;
+import by.kotor.trade.plugin.event.TradeListener;
 import by.kotor.trade.plugin.util.TradeManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class TradePlugin extends JavaPlugin {
 
-    public static TradePlugin instance;
-
     private TradeManager tradeManager;
 
     @Override
     public void onEnable() {
-        instance = this;
+
         saveDefaultConfig();
         int tradeTimeoutSeconds = getConfig().getInt("trade-timeout-seconds", 30);
         if (tradeTimeoutSeconds <= 0) {
@@ -27,6 +26,8 @@ public final class TradePlugin extends JavaPlugin {
         tradeManager.startOperationTrade();
 
         getCommand("trade").setExecutor(new TradeCommand());
+
+        getServer().getPluginManager().registerEvents(new TradeListener(tradeManager), this);
     }
 
     @Override
@@ -36,5 +37,9 @@ public final class TradePlugin extends JavaPlugin {
 
     public TradeManager getTradeManager() {
         return tradeManager;
+    }
+
+    public static TradePlugin getInstance() {
+        return JavaPlugin.getPlugin(TradePlugin.class);
     }
 }
